@@ -1,4 +1,4 @@
-name: 2ms Secret Scanning (Fixed)
+name: 2ms Secret Scanning (Simple)
 
 on:
   workflow_dispatch:
@@ -6,145 +6,30 @@ on:
   push:
     branches: [ main ]
 
-permissions:
-  security-events: write
-  contents: read
-  actions: read
-
 jobs:
   run-2ms:
     runs-on: ubuntu-latest
     env:
       TWO_MS_VERSION: "2.8.1"
-      REPORT_DIR: reports
-    
+
     steps:
-      - name: Checkout repository (full history)
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Show repo info (for demo)
-        run: |
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Commit: $GITHUB_SHA"
-          git --no-pager log -n 3 --pretty=format:"%h %ad %s" --date=short
-      
-      - name: Create reports directory
-        run: mkdir -p ${{ env.REPORT_DIR }}
-      
+
       - name: Run 2ms secret scan
         run: |
-          echo "Starting 2ms scan..."
-          
-          # Run 2ms with proper output formatting
-          # Using separate commands to ensure files are created properly
+          mkdir -p reports
           docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} git /repo \
-            --stdout-format yaml \
-            --report-path /repo/${{ env.REPORT_DIR }}/2ms-results.yaml \
-            --report-path /repo/${{ env.REPORT_DIR }}/2ms-results.sarif \
-            --log-level info \
+            --stdout-format json \
+            --report-path /repo/reports/2ms-results.json \
+            --ignore-pattern "**/node_modules/**" \
             || echo "2ms completed (exit code indicates secrets found)"
-            
-          # Verify files were created
-          echo "Checking generated files:"
-          ls -la ${{ env.REPORT_DIR }}/
           
-          # Show file sizes to confirm they contain data
-          if [ -f "${{ env.REPORT_DIR }}/2ms-results.sarif" ]; then
-            echo "SARIF file size: $(wc -c < ${{ env.REPORT_DIR }}/2ms-results.sarif) bytes"
-          else
-            echo "ERROR: SARIF file not found"
-          fi
-          
-          if [ -f "${{ env.REPORT_DIR }}/2ms-results.yaml" ]; then
-            echo "YAML file size: $(wc -c < ${{ env.REPORT_DIR }}/2ms-results.yaml) bytes"
-          else
-            echo "ERROR: YAML file not found"
-          fi
-      
-      - name: Generate additional human-readable output
-        if: always()
-        run: |
-          echo "Generating additional output formats..."
-          
-          # Create a simplified stdout version for easy viewing
-          docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} git /repo \
-            --stdout-format yaml > ${{ env.REPORT_DIR }}/2ms-stdout.yaml || true
-          
-          # Create a summary report
-          docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} git /repo \
-            --stdout-format json > ${{ env.REPORT_DIR }}/2ms-stdout.json || true
-          
-          echo "All generated files:"
-          ls -la ${{ env.REPORT_DIR }}/
-      
-      - name: Parse and display scan summary
-        if: always()
-        run: |
-          sudo apt-get update -q && sudo apt-get install -y jq
-          
-          SARIF_FILE="${{ env.REPORT_DIR }}/2ms-results.sarif"
-          JSON_FILE="${{ env.REPORT_DIR }}/2ms-stdout.json"
-          
-          echo "=== 2ms Scan Summary ==="
-          
-          # Try to get summary from JSON output first
-          if [ -f "$JSON_FILE" ] && [ -s "$JSON_FILE" ]; then
-            echo "Total items scanned: $(jq -r '.totalitemsscanned // "unknown"' "$JSON_FILE")"
-            echo "Total secrets found: $(jq -r '.totalsecretsfound // "unknown"' "$JSON_FILE")"
-            echo ""
-            echo "Top 10 findings:"
-            jq -r '.results | to_entries | .[:10] | .[] | "- \(.key): \(.value | length) instances"' "$JSON_FILE" 2>/dev/null || echo "Could not parse detailed results"
-          fi
-          
-          # Also try SARIF if available
-          if [ -f "$SARIF_FILE" ] && [ -s "$SARIF_FILE" ]; then
-            echo ""
-            echo "=== SARIF Results Summary ==="
-            RESULT_COUNT=$(jq '[.runs[].results[]] | length' "$SARIF_FILE" 2>/dev/null || echo "0")
-            echo "SARIF contains $RESULT_COUNT findings"
-            
-            echo ""
-            echo "Top findings by rule:"
-            jq -r '[.runs[].results[] | .ruleId] | group_by(.) | map({rule: .[0], count: length}) | sort_by(.count) | reverse | .[:5] | .[] | "- \(.rule): \(.count) occurrences"' "$SARIF_FILE" 2>/dev/null || echo "Could not parse SARIF rules"
-          fi
-      
-      - name: Upload SARIF to GitHub Code Scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ env.REPORT_DIR }}/2ms-results.sarif
-        continue-on-error: true
-      
-      - name: Upload scan reports as artifacts
-        if: always()
+          echo "Generated reports:"
+          ls -la reports/
+
+      - name: Upload JSON report
         uses: actions/upload-artifact@v4
         with:
-          name: 2ms-scan-results-${{ github.run_id }}
-          path: ${{ env.REPORT_DIR }}
-          if-no-files-found: warn
-      
-      - name: Final summary
-        if: always()
-        run: |
-          echo ""
-          echo "🔍 2ms Secret Scanning Complete"
-          echo "================================"
-          echo "📊 View results:"
-          echo "  • Download artifacts: Actions → This run → Artifacts"
-          echo "  • Code scanning alerts: Security → Code scanning (if SARIF uploaded successfully)"
-          echo "  • Raw logs: Available in this workflow output above"
-          echo ""
-          
-          if [ -f "${{ env.REPORT_DIR }}/2ms-results.sarif" ]; then
-            echo "✅ SARIF report generated successfully"
-          else
-            echo "❌ SARIF report generation failed"
-          fi
-          
-          if [ -f "${{ env.REPORT_DIR }}/2ms-stdout.yaml" ]; then
-            echo "✅ YAML report generated successfully"
-          else
-            echo "❌ YAML report generation failed"
-          fi
+          name: 2ms-scan-results
+          path: reports/2ms-results.json
