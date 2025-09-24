@@ -1,10 +1,10 @@
-name: 2ms Secret Scanning (Simple)
+name: 2ms Secret Scan
 
 on:
-  workflow_dispatch:
-  pull_request:
   push:
-    branches: [ main ]
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
 jobs:
   run-2ms:
