@@ -1,21 +1,58 @@
 name: Pipeline Example With 2MS
-
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
+
 jobs:
-  test:
+  secrets-scan:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
-          # Required for 2ms to have visibility to all commit history
           fetch-depth: 0
 
-      # ...
-
       - name: Run 2ms Scan
-        run: docker run -v $(pwd):/repo checkmarx/2ms:2.8.1 git /repo
+        run: |
+          echo "🔍 Running 2MS Secret Scan..."
+          docker run -v $(pwd):/repo checkmarx/2ms:2.8.1 git /repo --output-format sarif --output-file /repo/2ms-results.sarif || true
+          
+          # Also generate human-readable output for demo
+          docker run -v $(pwd):/repo checkmarx/2ms:2.8.1 git /repo --output-format table > 2ms-demo-results.txt || true
+
+      - name: Display Demo Results
+        run: |
+          echo "=========================================="
+          echo "🔍 2MS SECRET SCANNING DEMO RESULTS"
+          echo "=========================================="
+          
+          if [ -f "2ms-demo-results.txt" ] && [ -s "2ms-demo-results.txt" ]; then
+            echo "🚨 SECRETS FOUND:"
+            echo ""
+            cat 2ms-demo-results.txt
+            echo ""
+            echo "These results will also appear in the Security tab!"
+          else
+            echo "✅ No secrets detected"
+          fi
+          echo "=========================================="
+
+      - name: Upload SARIF to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 2ms-results.sarif
+          category: 2ms-secrets
+
+      - name: Upload Demo Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2ms-demo-results
+          path: |
+            2ms-results.sarif
+            2ms-demo-results.txt
