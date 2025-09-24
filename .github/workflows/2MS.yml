@@ -16,17 +16,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run 2ms secret scan (filesystem mode)
+      - name: Run 2ms secret scan
         run: |
           mkdir -p reports
           docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} filesystem \
             --path /repo \
             --stdout-format json \
-            --report-path /repo/reports/2ms-results.json \
             --log-level info \
-            --ignore-pattern "**/node_modules/**" \
+            --ignore-pattern "**/node_modules/**" > reports/2ms-results.json \
             || echo "2ms completed (exit code indicates secrets found)"
-          
+
           echo "Generated reports:"
           ls -la reports/
 
