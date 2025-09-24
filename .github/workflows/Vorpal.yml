@@ -3,15 +3,29 @@ on: [pull_request]
 jobs:
   vorpal:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write  # Ensures reviewdog can comment/annotate
     steps:
       - uses: actions/checkout@v4
+      - name: Get changed JavaScript files
+        id: changed-files
+        uses: tj-actions/changed-files@v46.0.1
+        with:
+          separator: ','
+          files: |
+            **/*.js
+          files_ignore: |
+            node_modules/**
+            public/**
+            views/**
       - name: Vorpal with reviewdog
+        if: ${{ steps.changed-files.outputs.all_changed_files != '' }}
         uses: checkmarx/vorpal-reviewdog-github-action@v1.2.0
         with:
-          source_path: app,server.js,routes,controllers,models
+          source_path: "${{ steps.changed-files.outputs.all_changed_files }}"
           folders_to_ignore: node_modules,public,views
           filter_mode: file
           github_token: ${{ secrets.github_token }}
           reporter: github-pr-review
-          level: error
+          level: info  # Changed to catch more issues
           fail_on_error: true
