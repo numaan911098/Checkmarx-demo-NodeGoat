@@ -1,5 +1,9 @@
 name: vorpal-reviewdog
-on: [pull_request]
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 jobs:
   vorpal:
     runs-on: ubuntu-latest
