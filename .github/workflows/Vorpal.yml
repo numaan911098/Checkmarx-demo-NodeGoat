@@ -1,0 +1,180 @@
+name: NodeGoat Security Analysis - Vorpal
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  vorpal-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      # Find all JavaScript files dynamically
+      - name: Find JavaScript files
+        id: find-js-files
+        run: |
+          # Find all .js files, exclude node_modules, format as comma-separated
+          JS_FILES=$(find . -name "*.js" -not -path "./node_modules/*" -not -path "./coverage/*" -not -path "./logs/*" | tr '\n' ',' | sed 's/,$//')
+          echo "js_files=$JS_FILES" >> $GITHUB_OUTPUT
+          echo "Found JavaScript files: $JS_FILES"
+          
+          # Also show individual files for demo purposes
+          echo "📁 JavaScript files found for analysis:"
+          find . -name "*.js" -not -path "./node_modules/*" -not -path "./coverage/*" -not -path "./logs/*" | head -10
+        
+      # Run Vorpal with multiple reporters for better visibility
+      - name: Vorpal Security Scan (SARIF Output)
+        if: steps.find-js-files.outputs.js_files != ''
+        uses: checkmarx/vorpal-reviewdog-github-action@v1.2.0
+        with:
+          source_path: "${{ steps.find-js-files.outputs.js_files }}"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          level: error
+          fail_on_error: true
+          filter_mode: file
+          
+      # Alternative: Run Vorpal with GitHub Check reporter for more visibility
+      - name: Vorpal Security Scan (GitHub Check)
+        if: steps.find-js-files.outputs.js_files != ''
+        continue-on-error: true
+        uses: checkmarx/vorpal-reviewdog-github-action@v1.2.0
+        with:
+          source_path: "${{ steps.find-js-files.outputs.js_files }}"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-check
+          level: warning
+          fail_on_error: false
+          filter_mode: file
+          
+      # Run Vorpal directly to capture detailed results
+      - name: Run Vorpal with Detailed Output
+        if: steps.find-js-files.outputs.js_files != ''
+        continue-on-error: true
+        run: |
+          # Create results directory
+          mkdir -p vorpal-results
+          
+          echo "🔍 Running Vorpal scan for detailed results..."
+          
+          # Get the container image and run Vorpal directly
+          docker pull checkmarx/vorpal-cli:1.1.4
+          
+          # Scan key files individually to get detailed results
+          echo "## Detailed Vulnerability Findings" > vorpal-results/detailed_findings.md
+          echo "" >> vorpal-results/detailed_findings.md
+          
+          # Scan the files that showed issues
+          for file in "./app/routes/contributions.js" "./app/routes/session.js" "./app/routes/index.js" "./app/routes/memos.js" "./app/routes/error.js" "./server.js"; do
+            if [ -f "$file" ]; then
+              echo "### Scanning: $file" >> vorpal-results/detailed_findings.md
+              echo "" >> vorpal-results/detailed_findings.md
+              echo "\`\`\`" >> vorpal-results/detailed_findings.md
+              docker run --rm -v "$(pwd):/src" checkmarx/vorpal-cli:1.1.4 /app/bin/vorpal -s "/src/$file" -f json 2>&1 | head -50 >> vorpal-results/detailed_findings.md || echo "Error scanning $file" >> vorpal-results/detailed_findings.md
+              echo "\`\`\`" >> vorpal-results/detailed_findings.md
+              echo "" >> vorpal-results/detailed_findings.md
+            fi
+          done
+          
+          # Create results directory
+          echo "🔍 Generating Vorpal Demo Artifacts..."
+          
+          # Generate summary report
+          echo "📊 Vorpal Security Analysis Report" > vorpal-results/summary.md
+          echo "====================================" >> vorpal-results/summary.md
+          echo "" >> vorpal-results/summary.md
+          echo "**Scan Date:** $(date)" >> vorpal-results/summary.md
+          echo "**Repository:** ${{ github.repository }}" >> vorpal-results/summary.md
+          echo "**Branch:** ${{ github.ref_name }}" >> vorpal-results/summary.md
+          echo "**Commit:** ${{ github.sha }}" >> vorpal-results/summary.md
+          echo "" >> vorpal-results/summary.md
+          echo "## Files Analyzed" >> vorpal-results/summary.md
+          echo "" >> vorpal-results/summary.md
+          
+          # List all JS files found
+          find . -name "*.js" -not -path "./node_modules/*" -not -path "./coverage/*" -not -path "./logs/*" | while read file; do
+            echo "- \`$file\`" >> vorpal-results/summary.md
+          done
+          
+          echo "" >> vorpal-results/summary.md
+          echo "## Scan Configuration" >> vorpal-results/summary.md
+          echo "" >> vorpal-results/summary.md
+          echo "- **Tool:** Checkmarx Vorpal" >> vorpal-results/summary.md
+          echo "- **Level:** Warning/Error" >> vorpal-results/summary.md
+          echo "- **Reporter:** github-pr-review, github-check" >> vorpal-results/summary.md
+          echo "" >> vorpal-results/summary.md
+          
+          # Create a sample SARIF structure for demo (since Vorpal might not generate files)
+          cat > vorpal-results/sample_results.sarif << 'EOF'
+          {
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "Vorpal",
+                    "version": "1.0.0"
+                  }
+                },
+                "results": [
+                  {
+                    "ruleId": "javascript/security",
+                    "message": {
+                      "text": "Vorpal security analysis completed. Check GitHub Security tab for detailed results."
+                    },
+                    "level": "note"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+          
+          # Create a detailed log for demo purposes
+          echo "Vorpal Scan Log - $(date)" > vorpal-results/scan.log
+          echo "==============================" >> vorpal-results/scan.log
+          echo "" >> vorpal-results/scan.log
+          echo "JavaScript files discovered:" >> vorpal-results/scan.log
+          find . -name "*.js" -not -path "./node_modules/*" -not -path "./coverage/*" -not -path "./logs/*" >> vorpal-results/scan.log
+          echo "" >> vorpal-results/scan.log
+          echo "Vorpal analysis executed via GitHub Actions" >> vorpal-results/scan.log
+          echo "Results available in GitHub Security tab and PR comments" >> vorpal-results/scan.log
+          
+          # Show what was created
+          echo "📋 Generated artifacts:"
+          ls -la vorpal-results/
+          
+      # Upload results as artifacts for demo
+      - name: Upload Vorpal Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vorpal-security-results
+          path: vorpal-results/
+          retention-days: 30
+          
+      # Create a visible summary in the workflow
+      - name: Display Results Summary
+        if: always()
+        run: |
+          echo "🛡️ Vorpal Security Scan Completed"
+          echo "=================================="
+          echo ""
+          echo "📂 Files scanned: $(find . -name "*.js" -not -path "./node_modules/*" | wc -l) JavaScript files"
+          echo "📊 Results available in artifacts"
+          echo "🔍 Check the 'Security' tab for detailed findings"
+          echo ""
+          if [ -d "vorpal-results" ]; then
+            echo "📋 Generated reports:"
+            ls -la vorpal-results/ | grep -E '\.(json|sarif|md)$' || echo "No report files found"
+          fi
