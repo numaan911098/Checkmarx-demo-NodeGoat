@@ -8,51 +8,90 @@ on:
 jobs:
   secrets-scan:
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 0
 
-      - name: Run 2ms Scan
-        run: |
-          echo "🔍 Running 2MS Secret Scan..."
-          docker run -v $(pwd):/repo checkmarx/2ms:2.8.1 git /repo --output-format sarif --output-file /repo/2ms-results.sarif || true
-          
-          # Also generate human-readable output for demo
-          docker run -v $(pwd):/repo checkmarx/2ms:2.8.1 git /repo --output-format table > 2ms-demo-results.txt || true
-
-      - name: Display Demo Results
+      - name: 🔍 Run 2MS Secret Scanning
         run: |
           echo "=========================================="
-          echo "🔍 2MS SECRET SCANNING DEMO RESULTS"
+          echo "🔍 2MS SECRET SCANNING - DEMO"
+          echo "=========================================="
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Timestamp: $(date)"
+          echo "=========================================="
+          echo ""
+          
+          echo "🚀 Starting comprehensive secret scan..."
+          echo ""
+          
+          # Run 2MS and capture output
+          docker run -v $(pwd):/repo checkmarx/2ms:2.8.1 git /repo --output-format table 2>&1 | tee 2ms-output.txt || true
+          
+          echo ""
+          echo "=========================================="
+          echo "📊 SCAN SUMMARY"
           echo "=========================================="
           
-          if [ -f "2ms-demo-results.txt" ] && [ -s "2ms-demo-results.txt" ]; then
-            echo "🚨 SECRETS FOUND:"
+          # Count potential findings (rough estimate from output)
+          FINDINGS=$(grep -c "Secret found" 2ms-output.txt 2>/dev/null || echo "0")
+          
+          if [ -s "2ms-output.txt" ] && grep -q "Secret found\|Finding" 2ms-output.txt 2>/dev/null; then
+            echo "🚨 POTENTIAL SECRETS DETECTED!"
             echo ""
-            cat 2ms-demo-results.txt
+            echo "📋 Full scan results above ☝️"
             echo ""
-            echo "These results will also appear in the Security tab!"
+            echo "⚠️  Please review these findings and:"
+            echo "   • Remove any real secrets from code"
+            echo "   • Use environment variables for sensitive data"
+            echo "   • Consider using secret management tools"
+            echo ""
+            echo "🔒 Security is everyone's responsibility!"
           else
-            echo "✅ No secrets detected"
+            echo "✅ No obvious secrets detected in repository"
+            echo ""
+            echo "ℹ️  This doesn't guarantee the absence of all secrets."
+            echo "   Always follow security best practices!"
           fi
+          
+          echo ""
+          echo "=========================================="
+          echo "✅ 2MS Secret Scan Complete"
           echo "=========================================="
 
-      - name: Upload SARIF to GitHub Security Tab
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Create Summary Report
+        run: |
+          echo "## 🔍 2MS Secret Scanning Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if grep -q "Secret found\|Finding" 2ms-output.txt 2>/dev/null; then
+            echo "### 🚨 Findings Detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The scan detected potential secrets in your repository." >> $GITHUB_STEP_SUMMARY
+            echo "Please review the detailed output in the workflow logs." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Recommended Actions:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove any hardcoded secrets" >> $GITHUB_STEP_SUMMARY
+            echo "- Use environment variables or secret management" >> $GITHUB_STEP_SUMMARY
+            echo "- Review commit history for exposed secrets" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ No Obvious Secrets Found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The scan completed without detecting obvious secrets." >> $GITHUB_STEP_SUMMARY
+            echo "Continue following security best practices!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📁 Upload Scan Results
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          sarif_file: 2ms-results.sarif
-          category: 2ms-secrets
-
-      - name: Upload Demo Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: 2ms-demo-results
-          path: |
-            2ms-results.sarif
-            2ms-demo-results.txt
+          name: 2ms-scan-output
+          path: 2ms-output.txt
+          retention-days: 30
