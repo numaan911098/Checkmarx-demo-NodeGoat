@@ -1,17 +1,17 @@
-name: Vorpal Security Analysis
-on:
-  pull_request:
-    branches: [ "main", "master" ]
+name: vorpal-reviewdog-nodegoat
+on: [pull_request]
 jobs:
   vorpal:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Vorpal scan (PR review)
+      - name: Vorpal with reviewdog
         uses: checkmarx/vorpal-reviewdog-github-action@v1.2.0
         with:
-          source_path: "./app/routes/contributions.js,./app/routes/session.js"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          source_path: app,server.js,routes,controllers,models
+          folders_to_ignore: node_modules,public,views
+          filter_mode: file
+          github_token: ${{ secrets.github_token }}
           reporter: github-pr-review
-          filter_mode: nofilter
-          fail_on_error: false
+          level: error
+          fail_on_error: true
