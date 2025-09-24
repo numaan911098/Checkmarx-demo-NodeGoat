@@ -1,27 +1,14 @@
-name: vorpal-reviewdog-nodegoat
-on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+name: vorpal-reviewdog
+on: [pull_request]
 jobs:
   vorpal:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Get changed JS files
-        id: changed-files
-        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32
-        with:
-          files: '**/*.js'  # Only get JavaScript files
-          separator: ','
-        
       - name: Vorpal with reviewdog
-        if: steps.changed-files.outputs.all_changed_files != ''
         uses: checkmarx/vorpal-reviewdog-github-action@v1.0.0
         with:
-          source_path: "${{ steps.changed-files.outputs.all_changed_files }}"
+          source_path: app/routes/index.js,app/routes/memos.js,app/routes/contributions.js,app/routes/tutorial.js,app/routes/allocations.js,app/routes/research.js,app/routes/session.js,app/routes/profile.js,app/routes/error.js,app/routes/benefits.js,app/data/contributions-dao.js,app/data/allocations-dao.js,app/data/memos-dao.js,app/data/benefits-dao.js,app/data/profile-dao.js,app/data/user-dao.js,app/data/research-dao.js,server.js,config/config.js
           filter_mode: file
           github_token: ${{ secrets.github_token }}
           reporter: github-pr-check
