@@ -5,30 +5,24 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 jobs:
-  vorpal-scan:
+  vorpal:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 #v46.0.1
+        with:
+          separator: ','
         
-      # Find all JavaScript files dynamically
-      - name: Find JavaScript files
-        id: find-js-files
-        run: |
-          # Find all .js files, exclude node_modules, format as comma-separated
-          JS_FILES=$(find . -name "*.js" -not -path "./node_modules/*" -not -path "./coverage/*" -not -path "./logs/*" | tr '\n' ',' | sed 's/,$//')
-          echo "js_files=$JS_FILES" >> $GITHUB_OUTPUT
-          echo "Found files: $JS_FILES"
-        
-      # Run Vorpal on discovered files
-      - name: Vorpal Security Scan
-        if: steps.find-js-files.outputs.js_files != ''
+      - name: Vorpal with reviewdog
+        if: ${{ steps.changed-files.outputs.all_changed_files != '' }}
         uses: checkmarx/vorpal-reviewdog-github-action@v1.0.0
         with:
-          source_path: "${{ steps.find-js-files.outputs.js_files }}"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: github-pr-review
-          level: warning
-          fail_on_error: false
+          source_path: "${{ steps.changed-files.outputs.all_changed_files }}"
           filter_mode: file
+          github_token: ${{ secrets.github_token }}
+          reporter: github-pr-check
+          level: error
+          fail_on_error: false
