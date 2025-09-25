@@ -12,9 +12,9 @@ jobs:
       - name: Vorpal with reviewdog
         uses: checkmarx/vorpal-reviewdog-github-action@v1.0.0
         with:
-          source_path: app/routes/index.js,app/routes/memos.js,app/routes/contributions.js,app/routes/tutorial.js,app/routes/allocations.js,app/routes/research.js,app/routes/session.js,app/routes/profile.js,app/routes/error.js,app/routes/benefits.js,app/data/contributions-dao.js,app/data/allocations-dao.js,app/data/memos-dao.js,app/data/benefits-dao.js,app/data/profile-dao.js,app/data/user-dao.js,app/data/research-dao.js,server.js,config/config.js
+          source_path: app\data\allocations-dao.js,app\data\benefits-dao.js,app\data\contributions-dao.js,app\data\memos-dao.js,app\data\profile-dao.js,app\data\research-dao.js,app\data\user-dao.js
           filter_mode: file
           github_token: ${{ secrets.github_token }}
           reporter: github-pr-check
           level: error
-          fail_on_error: false
+          fail_on_error: true
