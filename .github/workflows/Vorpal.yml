@@ -43,17 +43,13 @@ jobs:
       # STEP 1: Run Vorpal to generate SARIF report
       - name: Scan for SARIF report
         shell: bash
-        env:
-          SCAN_FILES: ${{ env.SCAN_FILES }}
         run: |
-          # Expand the source files string before running Docker
-          scan_files="$SCAN_FILES"
           docker run --rm \
             -v ${{ github.workspace }}:/src \
             --workdir /src \
             checkmarx/vorpal-cli:1.0.116 \
             scan \
-            -s "$scan_files" \
+            -s . \
             --sarif-output vorpal-results.sarif
 
       # STEP 2: Run Vorpal with reviewdog for PR comments
@@ -73,3 +69,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: vorpal-results.sarif
+
