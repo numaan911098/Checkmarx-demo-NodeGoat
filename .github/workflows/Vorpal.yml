@@ -46,12 +46,14 @@ jobs:
         env:
           SCAN_FILES: ${{ env.SCAN_FILES }}
         run: |
+          # Expand the source files string before running Docker
+          scan_files="$SCAN_FILES"
           docker run --rm \
             -v ${{ github.workspace }}:/src \
             --workdir /src \
             checkmarx/vorpal-cli:1.0.116 \
             scan \
-            -s "$SCAN_FILES" \
+            -s "$scan_files" \
             --sarif-output vorpal-results.sarif
 
       # STEP 2: Run Vorpal with reviewdog for PR comments
