@@ -47,11 +47,11 @@ jobs:
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/app \
-            checkmarx/vorpal-cli:latest scan \
+            checkmarx/vorpal-cli:1.0.116 scan \ # <-- Corrected from ':latest' to ':1.0.116'
             -s ${{ env.SCAN_FILES }} \
             --sarif-output /app/vorpal-results.sarif
 
-      # STEP 2: Run Vorpal with reviewdog for PR comments (your original step)
+      # STEP 2: Run Vorpal with reviewdog for PR comments
       - name: Vorpal with reviewdog for PR comments
         uses: checkmarx/vorpal-reviewdog-github-action@v1.0.0
         with:
@@ -64,7 +64,7 @@ jobs:
       
       # STEP 3: Upload the SARIF file generated in Step 1
       - name: Upload SARIF to Security Tab
-        if: success() || failure()
+        if: always() # Run this step even if previous steps fail, to upload any partial results
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: vorpal-results.sarif
