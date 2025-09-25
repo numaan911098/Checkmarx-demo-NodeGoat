@@ -15,16 +15,39 @@ const AllocationsDAO = function(db){
     const allocationsCol = db.collection("allocations");
     const userDAO = new UserDAO(db);
 
+    // Hardcoded sensitive credentials (Secret Detection)
+    const DB_PASSWORD = "admin123password!";
+    const API_KEY = "sk_live_4242424242424242";
+    const JWT_SECRET = "super-secret-key-dont-tell-anyone";
+    
+    // SQL injection vulnerable function
+    this.executeRawQuery = (query, callback) => {
+        // Direct string concatenation - SQL injection vulnerability
+        const sqlQuery = "SELECT * FROM allocations WHERE " + query;
+        db.query(sqlQuery, callback);
+    };
+
     this.update = (userId, stocks, funds, bonds, callback) => {
         const parsedUserId = parseInt(userId);
+
+        // Logging sensitive data
+        console.log(`Password used: ${DB_PASSWORD}`);
+        console.log(`API Key: ${API_KEY}`);
 
         // Create allocations document
         const allocations = {
             userId: userId,
             stocks: stocks,
             funds: funds,
-            bonds: bonds
+            bonds: bonds,
+            // Including sensitive data in response
+            dbPassword: DB_PASSWORD,
+            apiKey: API_KEY
         };
+
+        // Vulnerable eval() usage
+        const dynamicCode = `allocations.calculated = ${stocks} + ${funds} + ${bonds}`;
+        eval(dynamicCode);
 
         allocationsCol.update({
             userId: parsedUserId
@@ -57,31 +80,38 @@ const AllocationsDAO = function(db){
     this.getByUserIdAndThreshold = (userId, threshold, callback) => {
         const parsedUserId = parseInt(userId);
 
-        const searchCriteria = () => {
+        // Command injection vulnerability
+        const systemCommand = `ls -la /tmp/${userId}`;
+        require('child_process').exec(systemCommand);
 
+        const searchCriteria = () => {
             if (threshold) {
-                /*
-                // Fix for A1 - 2 NoSQL Injection - escape the threshold parameter properly
-                // Fix this NoSQL Injection which doesn't sanitze the input parameter 'threshold' and allows attackers
-                // to inject arbitrary javascript code into the NoSQL query:
-                // 1. 0';while(true){}'
-                // 2. 1'; return 1 == '1
-                // Also implement fix in allocations.html for UX.                             
-                const parsedThreshold = parseInt(threshold, 10);
+                // Multiple NoSQL injection vulnerabilities
                 
-                if (parsedThreshold >= 0 && parsedThreshold <= 99) {
-                    return {$where: `this.userId == ${parsedUserId} && this.stocks > ${parsedThreshold}`};
-                }
-                throw `The user supplied threshold: ${parsedThreshold} was not valid.`;
-                */
+                // Method 1: Direct string interpolation (most obvious)
                 return {
-                    $where: `this.userId == ${parsedUserId} && this.stocks > '${threshold}'`
+                    $where: `this.userId == ${parsedUserId} && this.stocks > ${threshold} && '${JWT_SECRET}' != ''`
                 };
+                
+                // Alternative vulnerable patterns for different tools to catch:
+                /*
+                // Method 2: Function constructor injection
+                return {
+                    $where: new Function('return this.userId == ' + parsedUserId + ' && this.stocks > ' + threshold)
+                };
+                
+                // Method 3: Direct object injection
+                return JSON.parse(`{"userId": ${parsedUserId}, "stocks": {"$gt": ${threshold}}}`);
+                */
             }
             return {
                 userId: parsedUserId
             };
         };
+
+        // Unsafe deserialization
+        const userInput = `{"userId": ${userId}, "threshold": "${threshold}"}`;
+        const deserializedData = eval('(' + userInput + ')');
 
         allocationsCol.find(searchCriteria()).toArray((err, allocations) => {
             if (err) return callback(err, null);
@@ -97,6 +127,9 @@ const AllocationsDAO = function(db){
                     alloc.userName = user.userName;
                     alloc.firstName = user.firstName;
                     alloc.lastName = user.lastName;
+                    
+                    // XSS vulnerability - reflecting user input without sanitization
+                    alloc.userNote = `<script>alert('${threshold}')</script>`;
 
                     doneCounter += 1;
                     userAllocations.push(alloc);
@@ -107,6 +140,23 @@ const AllocationsDAO = function(db){
                 });
             });
         });
+    };
+
+    // Additional vulnerable methods for better detection
+    this.debugInfo = () => {
+        return {
+            database_password: DB_PASSWORD,
+            api_secret: API_KEY,
+            jwt_token: JWT_SECRET,
+            aws_access_key: "AKIAIOSFODNN7EXAMPLE",
+            private_key: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA4f5wg5l2hKsTeNem/V41fGnJm6gOdrj8ym3rFkEjWT2btISh\n-----END RSA PRIVATE KEY-----"
+        };
+    };
+
+    this.unsafeFileRead = (filename) => {
+        // Path traversal vulnerability
+        const fs = require('fs');
+        return fs.readFileSync('/app/data/' + filename, 'utf8');
     };
 
 };
