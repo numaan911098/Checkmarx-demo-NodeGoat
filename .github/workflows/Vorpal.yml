@@ -48,7 +48,7 @@ jobs:
             -v ${{ github.workspace }}:/src \
             --workdir /src \
             checkmarx/vorpal-cli:1.0.116 \
-            /app/bin/vorpal scan \
+            scan \
             -s ${{ env.SCAN_FILES }} \
             --sarif-output vorpal-results.sarif
 
@@ -63,7 +63,7 @@ jobs:
           level: error
           fail_on_error: false
       
-      # STEP 3: Upload the SARIF file generated in Step 1-
+      # STEP 3: Upload the SARIF file generated in Step 1
       - name: Upload SARIF to Security Tab
         if: always()
         uses: github/codeql-action/upload-sarif@v3
