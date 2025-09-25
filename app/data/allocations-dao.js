@@ -15,39 +15,16 @@ const AllocationsDAO = function(db){
     const allocationsCol = db.collection("allocations");
     const userDAO = new UserDAO(db);
 
-    // Hardcoded sensitive credentials (Secret Detection)
-    const DB_PASSWORD = "admin123password!";
-    const API_KEY = "sk_live_4242424242424242";
-    const JWT_SECRET = "super-secret-key-dont-tell-anyone";
-    
-    // SQL injection vulnerable function
-    this.executeRawQuery = (query, callback) => {
-        // Direct string concatenation - SQL injection vulnerability
-        const sqlQuery = "SELECT * FROM allocations WHERE " + query;
-        db.query(sqlQuery, callback);
-    };
-
     this.update = (userId, stocks, funds, bonds, callback) => {
         const parsedUserId = parseInt(userId);
-
-        // Logging sensitive data
-        console.log(`Password used: ${DB_PASSWORD}`);
-        console.log(`API Key: ${API_KEY}`);
 
         // Create allocations document
         const allocations = {
             userId: userId,
             stocks: stocks,
             funds: funds,
-            bonds: bonds,
-            // Including sensitive data in response
-            dbPassword: DB_PASSWORD,
-            apiKey: API_KEY
+            bonds: bonds
         };
-
-        // Vulnerable eval() usage
-        const dynamicCode = `allocations.calculated = ${stocks} + ${funds} + ${bonds}`;
-        eval(dynamicCode);
 
         allocationsCol.update({
             userId: parsedUserId
@@ -80,40 +57,40 @@ const AllocationsDAO = function(db){
     this.getByUserIdAndThreshold = (userId, threshold, callback) => {
         const parsedUserId = parseInt(userId);
 
-        // Command injection vulnerability
-        const systemCommand = `ls -la /tmp/${userId}`;
-        require('child_process').exec(systemCommand);
-
         const searchCriteria = () => {
             if (threshold) {
-                // Multiple NoSQL injection vulnerabilities
+                // VULNERABILITY: NoSQL Injection - Direct string concatenation in $where clause
+                // This allows attackers to inject malicious JavaScript code
+                // Example payloads: 
+                // - "'; return true; var x='"
+                // - "0'; while(true){} var y='"
+                // - "1'; return this.userId == 999; var z='"
                 
-                // Method 1: Direct string interpolation (most obvious)
+                // Multiple vulnerable patterns to increase detection probability:
+                
+                // Pattern 1: Direct template literal (most common detection pattern)
+                const whereClause = `this.userId == ${parsedUserId} && this.stocks > '${threshold}'`;
+                
+                // Pattern 2: String concatenation (alternative detection pattern)
+                const alternativeWhere = "this.userId == " + parsedUserId + " && this.stocks > '" + threshold + "'";
+                
+                // Pattern 3: Using eval-like construction (highly suspicious to scanners)
+                const dynamicQuery = new Function("return { $where: \"" + whereClause + "\" }")();
+                
+                // Return the vulnerable query (using the most obvious pattern)
                 return {
-                    $where: `this.userId == ${parsedUserId} && this.stocks > ${threshold} && '${JWT_SECRET}' != ''`
+                    $where: whereClause
                 };
-                
-                // Alternative vulnerable patterns for different tools to catch:
-                /*
-                // Method 2: Function constructor injection
-                return {
-                    $where: new Function('return this.userId == ' + parsedUserId + ' && this.stocks > ' + threshold)
-                };
-                
-                // Method 3: Direct object injection
-                return JSON.parse(`{"userId": ${parsedUserId}, "stocks": {"$gt": ${threshold}}}`);
-                */
             }
             return {
                 userId: parsedUserId
             };
         };
 
-        // Unsafe deserialization
-        const userInput = `{"userId": ${userId}, "threshold": "${threshold}"}`;
-        const deserializedData = eval('(' + userInput + ')');
-
-        allocationsCol.find(searchCriteria()).toArray((err, allocations) => {
+        // Additional NoSQL injection point in find query itself
+        const queryObj = searchCriteria();
+        
+        allocationsCol.find(queryObj).toArray((err, allocations) => {
             if (err) return callback(err, null);
             if (!allocations.length) return callback("ERROR: No allocations found for the user", null);
 
@@ -127,9 +104,6 @@ const AllocationsDAO = function(db){
                     alloc.userName = user.userName;
                     alloc.firstName = user.firstName;
                     alloc.lastName = user.lastName;
-                    
-                    // XSS vulnerability - reflecting user input without sanitization
-                    alloc.userNote = `<script>alert('${threshold}')</script>`;
 
                     doneCounter += 1;
                     userAllocations.push(alloc);
@@ -142,21 +116,11 @@ const AllocationsDAO = function(db){
         });
     };
 
-    // Additional vulnerable methods for better detection
-    this.debugInfo = () => {
-        return {
-            database_password: DB_PASSWORD,
-            api_secret: API_KEY,
-            jwt_token: JWT_SECRET,
-            aws_access_key: "AKIAIOSFODNN7EXAMPLE",
-            private_key: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA4f5wg5l2hKsTeNem/V41fGnJm6gOdrj8ym3rFkEjWT2btISh\n-----END RSA PRIVATE KEY-----"
-        };
-    };
-
-    this.unsafeFileRead = (filename) => {
-        // Path traversal vulnerability
-        const fs = require('fs');
-        return fs.readFileSync('/app/data/' + filename, 'utf8');
+    // Additional method to make the pattern more obvious to scanners
+    this.findByQuery = (userQuery, callback) => {
+        // VULNERABILITY: Direct user input in MongoDB query
+        const mongoQuery = { $where: userQuery };
+        allocationsCol.find(mongoQuery).toArray(callback);
     };
 
 };
