@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Vorpal with reviewdog
-        uses: checkmarx/vorpal-reviewdog-github-action@v1.0.0
+        uses: checkmarx/vorpal-reviewdog-github-action@v1.2.0
         with:
           source_path: app/data/allocations-dao.js,app/data/user-dao.js
           level: error
