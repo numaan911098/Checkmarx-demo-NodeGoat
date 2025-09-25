@@ -26,7 +26,6 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
-# Define the list of files to scan in one place to avoid repetition
 env:
   SCAN_FILES: app/routes/index.js,app/routes/memos.js,app/routes/contributions.js,app/routes/tutorial.js,app/routes/allocations.js,app/routes/research.js,app/routes/session.js,app/routes/profile.js,app/routes/error.js,app/routes/benefits.js,app/data/contributions-dao.js,app/data/allocations-dao.js,app/data/memos-dao.js,app/data/benefits-dao.js,app/data/profile-dao.js,app/data/user-dao.js,app/data/research-dao.js,server.js,config/config.js
 
@@ -42,15 +41,15 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
       
-      # STEP 1: Run Vorpal to generate SARIF report for the Security tab
+      # STEP 1: Run Vorpal to generate SARIF report
       - name: Scan for SARIF report
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/app \
             --workdir /app \
-            checkmarx/vorpal-cli:1.0.116 scan \
-            -s ${{ env.SCAN_FILES }} \
-            --sarif-output vorpal-results.sarif
+            --entrypoint /bin/bash \
+            checkmarx/vorpal-cli:1.0.116 \
+            -c "vorpal scan -s ${{ env.SCAN_FILES }} --sarif-output vorpal-results.sarif"
 
       # STEP 2: Run Vorpal with reviewdog for PR comments
       - name: Vorpal with reviewdog for PR comments
