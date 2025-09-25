@@ -45,11 +45,12 @@ jobs:
       - name: Scan for SARIF report
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            --workdir /app \
-            --entrypoint /bin/bash \
+            -v ${{ github.workspace }}:/src \
+            --workdir /src \
             checkmarx/vorpal-cli:1.0.116 \
-            -c "/app/bin/vorpal scan -s ${{ env.SCAN_FILES }} --sarif-output vorpal-results.sarif"
+            /app/bin/vorpal scan \
+            -s ${{ env.SCAN_FILES }} \
+            --sarif-output vorpal-results.sarif
 
       # STEP 2: Run Vorpal with reviewdog for PR comments
       - name: Vorpal with reviewdog for PR comments
