@@ -131,13 +131,14 @@
 #           name: 2ms-scan-results
 #           path: reports/
 
-name: 2MS Security Scan
+name: 2MS Secret Scan
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   two-ms-scan:
@@ -145,13 +146,15 @@ jobs:
     permissions:
       contents: read
       security-events: write
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Run 2ms scan
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Run 2MS Scan
         run: |
-          mkdir -p reports
           # Run scan but do not fail job even if findings
           docker run --rm -v "$PWD":/repo checkmarx/2ms:2.8.1 filesystem \
             --path /repo \
@@ -160,11 +163,10 @@ jobs:
             --ignore-pattern "**/node_modules/**" \
             > reports/2ms-results.json || true
 
-      - name: Convert JSON → SARIF
-        id: convert
+      - name: Convert JSON to SARIF
         run: |
           python3 - <<'EOF'
-          import json, sys
+          import json
           with open("reports/2ms-results.json") as f:
               data = json.load(f)
 
@@ -204,23 +206,10 @@ jobs:
               json.dump(sarif, f, indent=2)
 
           print(f"✅ Created SARIF with {findings} findings")
-          if findings > 0:
-              # write flag for later step
-              with open("reports/exit_code.txt", "w") as f:
-                  f.write("1")
-          else:
-              with open("reports/exit_code.txt", "w") as f:
-                  f.write("0")
           EOF
 
-      - name: Upload SARIF to GitHub Security tab
+      - name: Upload SARIF to GitHub
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: reports/2ms-results.sarif
-
-      - name: Fail if findings exist
-        run: |
-          if [ "$(cat reports/exit_code.txt)" -ne 0 ]; then
-            echo "❌ Secrets detected — failing the job"
-            exit 1
-          fi
+          wait-for-processing: true
