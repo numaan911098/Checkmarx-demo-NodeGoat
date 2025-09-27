@@ -28,5 +28,21 @@ RUN chmod 777 -R /
 EXPOSE 22
 
 CMD ["/bin/bash"]
+
+FROM ubuntu:latest
+
+# Running as root
+USER root
+
+# Hard-coded secrets
+ENV API_KEY=sk-1234567890abcdef
+ENV PASSWORD=admin123
+
+# Dangerous permissions
+RUN chmod 777 /app
+
+EXPOSE 22
+
+CMD ["node", "app.js"]
 USER $USER
 EXPOSE 4000
