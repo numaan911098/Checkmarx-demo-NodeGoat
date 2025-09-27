@@ -1,37 +1,85 @@
-name: 2ms Secret Scan
+# name: 2ms Secret Scan
 
+# on:
+#   push:
+#     branches: [ "main", "master" ]
+#   pull_request:
+#     branches: [ "main", "master" ]
+
+# jobs:
+#   run-2ms:
+#     runs-on: ubuntu-latest
+#     env:
+#       TWO_MS_VERSION: "2.8.1"
+
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Run 2ms secret scan
+#         run: |
+#           mkdir -p reports
+#           docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} filesystem \
+#             --path /repo \
+#             --stdout-format json \
+#             --log-level info \
+#             --ignore-pattern "**/node_modules/**" > reports/2ms-results.json \
+#             || echo "2ms completed (exit code indicates secrets found)"
+
+#           echo "Generated reports:"
+#           ls -la reports/
+
+#       - name: Upload JSON report
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: 2ms-scan-results
+#           path: reports/2ms-results.json
+
+name: 2ms Secret Scan
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-
 jobs:
   run-2ms:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # Required for SARIF upload
     env:
       TWO_MS_VERSION: "2.8.1"
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Run 2ms secret scan
         run: |
           mkdir -p reports
+          # Generate both JSON and SARIF outputs
+          docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} filesystem \
+            --path /repo \
+            --stdout-format sarif \
+            --log-level info \
+            --ignore-pattern "**/node_modules/**" > reports/2ms-results.sarif \
+            || echo "2ms completed (exit code indicates secrets found)"
+          
+          # Also generate JSON for detailed analysis
           docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} filesystem \
             --path /repo \
             --stdout-format json \
             --log-level info \
             --ignore-pattern "**/node_modules/**" > reports/2ms-results.json \
-            || echo "2ms completed (exit code indicates secrets found)"
-
+            || echo "2ms completed"
+            
           echo "Generated reports:"
           ls -la reports/
-
-      - name: Upload JSON report
+      - name: Upload SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: reports/2ms-results.sarif
+      - name: Upload JSON report as artifact
         uses: actions/upload-artifact@v4
         with:
           name: 2ms-scan-results
-          path: reports/2ms-results.json
-
+          path: reports/

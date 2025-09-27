@@ -1,34 +1,73 @@
-name: KICS IaC Security Scan
+# name: KICS IaC Security Scan
 
+# on:
+#   push:
+#     branches: [ "main", "master" ]
+#   pull_request:
+#     branches: [ "main", "master" ]
+
+# jobs:
+#   kics-scan:
+#     runs-on: ubuntu-latest
+#     name: Run KICS Scan
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Create results directory
+#         run: mkdir -p results-dir
+
+#       - name: Run KICS Scan
+#         uses: Checkmarx/kics-github-action@v1.7.0
+#         with:
+#           path: '.'
+#           output_path: results-dir
+#           output_formats: 'json'       # just JSON for demo
+#           platform_type: 'dockerfile,kubernetes,terraform'
+#           exclude_paths: 'node_modules'
+#           fail_on: "high,medium"      # fail workflow only for high/medium
+#           ignore_on_exit: "results"   # ignore LOW findings
+
+#       - name: Upload KICS Results Artifact
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: kics-results
+#           path: results-dir/
+
+name: KICS IaC Security Scan
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-
 jobs:
   kics-scan:
     runs-on: ubuntu-latest
     name: Run KICS Scan
+    permissions:
+      contents: read
+      security-events: write  # Required for SARIF upload
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Create results directory
         run: mkdir -p results-dir
-
       - name: Run KICS Scan
         uses: Checkmarx/kics-github-action@v1.7.0
         with:
           path: '.'
           output_path: results-dir
-          output_formats: 'json'       # just JSON for demo
+          output_formats: 'json,sarif'  # Generate both formats
           platform_type: 'dockerfile,kubernetes,terraform'
           exclude_paths: 'node_modules'
-          fail_on: "high,medium"      # fail workflow only for high/medium
-          ignore_on_exit: "results"   # ignore LOW findings
-
-      - name: Upload KICS Results Artifact
+          fail_on: "high,medium"
+          ignore_on_exit: "results"
+      - name: Upload SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results-dir/results.sarif
+      - name: Upload All Results as Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kics-results
