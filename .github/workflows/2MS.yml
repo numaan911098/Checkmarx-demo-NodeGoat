@@ -35,7 +35,7 @@
 #           name: 2ms-scan-results
 #           path: reports/2ms-results.json
 
-name: 2ms Secret Scan
+name: 2ms Secret Scan (Alternative)
 on:
   push:
     branches: [ "main", "master" ]
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write  # Required for SARIF upload
+      security-events: write
     env:
       TWO_MS_VERSION: "2.8.1"
     steps:
@@ -61,14 +61,65 @@ jobs:
             --stdout-format json \
             --log-level error \
             --ignore-pattern "**/node_modules/**" > reports/2ms-results.json \
-            || echo "2ms completed (secrets found)"
+            || echo "2ms completed"
           
-          # Skip SARIF for now due to output formatting issues
-          echo "Skipping SARIF upload - will demo JSON results instead"
-            
+          # Create basic SARIF from JSON results
+          python3 -c "
+          import json
+          import sys
+          
+          # Read JSON results
+          with open('reports/2ms-results.json', 'r') as f:
+              data = json.load(f)
+          
+          # Create basic SARIF structure
+          sarif = {
+              'version': '2.1.0',
+              'runs': [{
+                  'tool': {
+                      'driver': {
+                          'name': '2MS',
+                          'version': '2.8.1',
+                          'informationUri': 'https://github.com/Checkmarx/2ms'
+                      }
+                  },
+                  'results': []
+              }]
+          }
+          
+          # Convert findings to SARIF format
+          for file_results in data.get('results', {}).values():
+              for finding in file_results:
+                  result = {
+                      'ruleId': finding['ruleId'],
+                      'message': {'text': f'Secret detected: {finding[\"ruleId\"]}'},
+                      'locations': [{
+                          'physicalLocation': {
+                              'artifactLocation': {'uri': finding['source'].replace('/repo/', '')},
+                              'region': {
+                                  'startLine': finding.get('startLine', 1),
+                                  'startColumn': finding.get('startColumn', 1)
+                              }
+                          }
+                      }],
+                      'level': 'error'
+                  }
+                  sarif['runs'][0]['results'].append(result)
+          
+          # Write SARIF file
+          with open('reports/2ms-results.sarif', 'w') as f:
+              json.dump(sarif, f, indent=2)
+          
+          print(f'Created SARIF with {len(sarif[\"runs\"][0][\"results\"])} findings')
+          "
+          
           echo "Generated reports:"
           ls -la reports/
-      # Skip SARIF upload for now - focus on JSON artifacts for demo
+      - name: Upload SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: reports/2ms-results.sarif
       - name: Upload JSON report as artifact
         uses: actions/upload-artifact@v4
         with:
