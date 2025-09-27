@@ -131,44 +131,40 @@
 #           name: 2ms-scan-results
 #           path: reports/
 
-name: 2ms Secret Scan
+name: 2MS Security Scan
+
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ main ]
 
 jobs:
-  run-2ms:
+  two-ms-scan:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
-    env:
-      TWO_MS_VERSION: "2.8.1"
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Run 2ms secret scan and convert to SARIF
+      - name: Run 2ms scan
         run: |
           mkdir -p reports
-          
-          # Run 2ms scan → JSON output
-          docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} filesystem \
+          docker run --rm -v "$PWD":/repo checkmarx/2ms:2.8.1 filesystem \
             --path /repo \
             --stdout-format json \
             --log-level error \
             --ignore-pattern "**/node_modules/**" \
             > reports/2ms-results.json
 
-          # Convert JSON → SARIF and fail if findings exist
+      - name: Convert JSON → SARIF
+        id: convert
+        run: |
           python3 - <<'EOF'
           import json, sys
-
-          # Load JSON results
-          with open("reports/2ms-results.json", "r") as f:
+          with open("reports/2ms-results.json") as f:
               data = json.load(f)
 
           sarif = {
@@ -187,43 +183,43 @@ jobs:
 
           for file_results in data.get("results", {}).values():
               for finding in file_results:
-                  start_line = max(finding.get("startLine", 1), 1)
-                  start_column = max(finding.get("startColumn", 1), 1)
                   sarif["runs"][0]["results"].append({
                       "ruleId": finding["ruleId"],
                       "message": {"text": f"Secret detected: {finding['ruleId']}"},
                       "locations": [{
                           "physicalLocation": {
                               "artifactLocation": {"uri": finding["source"].replace("/repo/", "")},
-                              "region": {"startLine": start_line, "startColumn": start_column}
+                              "region": {
+                                  "startLine": max(finding.get("startLine", 1), 1),
+                                  "startColumn": max(finding.get("startColumn", 1), 1)
+                              }
                           }
                       }],
                       "level": "error"
                   })
 
           findings = len(sarif["runs"][0]["results"])
-
-          # Save SARIF
           with open("reports/2ms-results.sarif", "w") as f:
               json.dump(sarif, f, indent=2)
 
           print(f"✅ Created SARIF with {findings} findings")
           if findings > 0:
-              print("❌ Secrets detected — failing the job")
-              sys.exit(1)  # fail the workflow
+              # write flag for later step
+              with open("reports/exit_code.txt", "w") as f:
+                  f.write("1")
+          else:
+              with open("reports/exit_code.txt", "w") as f:
+                  f.write("0")
           EOF
 
-          echo "Generated reports:"
-          ls -la reports/
-
-      - name: Upload SARIF to Security tab
+      - name: Upload SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: reports/2ms-results.sarif
 
-      - name: Upload JSON report as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: 2ms-scan-results
-          path: reports/
+      - name: Fail if findings exist
+        run: |
+          if [ "$(cat reports/exit_code.txt)" -ne 0 ]; then
+            echo "❌ Secrets detected — failing the job"
+            exit 1
+          fi
