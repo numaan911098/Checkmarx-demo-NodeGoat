@@ -10,6 +10,15 @@ services:
     ports:
       - "4000:4000"
 
+version: '3'
+services:
+  app:
+    build: .
+    privileged: true
+    network_mode: host
+    environment:
+      - PASSWORD=admin123
+      - API_KEY=sk-1234567890abcdef
   mongo:
     image: mongo:4.4
     user: mongodb

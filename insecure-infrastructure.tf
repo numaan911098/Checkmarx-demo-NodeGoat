@@ -197,3 +197,28 @@ spec:
       # Running on host network
       hostNetwork: true
       hostPID: true
+
+resource "aws_s3_bucket" "public_bucket" {
+  bucket = "my-public-bucket"
+  acl    = "public-read-write"
+}
+
+resource "aws_security_group" "open_sg" {
+  name = "open-security-group"
+  
+  ingress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "unencrypted_instance" {
+  ami           = "ami-12345678"
+  instance_type = "t2.micro"
+  
+  root_block_device {
+    encrypted = false
+  }
+}
