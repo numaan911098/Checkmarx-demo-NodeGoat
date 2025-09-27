@@ -35,181 +35,181 @@
 #           name: 2ms-scan-results
 #           path: reports/2ms-results.json
 
-# name: 2ms Secret Scan (Fixed)
-# on:
-#   push:
-#     branches: [ "main", "master" ]
-#   pull_request:
-#     branches: [ "main", "master" ]
-# jobs:
-#   run-2ms:
-#     runs-on: ubuntu-latest
-#     permissions:
-#       contents: read
-#       security-events: write
-#     env:
-#       TWO_MS_VERSION: "2.8.1"
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v4
-#       - name: Run 2ms secret scan
-#         run: |
-#           mkdir -p reports
-#           # Generate JSON output (this works reliably)
-#           docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} filesystem \
-#             --path /repo \
-#             --stdout-format json \
-#             --log-level error \
-#             --ignore-pattern "**/node_modules/**" > reports/2ms-results.json \
-#             || echo "2ms completed"
-          
-#           # Create basic SARIF from JSON results with proper line number handling
-#           python3 -c "
-#           import json
-#           import sys
-          
-#           # Read JSON results
-#           with open('reports/2ms-results.json', 'r') as f:
-#               data = json.load(f)
-          
-#           # Create basic SARIF structure
-#           sarif = {
-#               'version': '2.1.0',
-#               'runs': [{
-#                   'tool': {
-#                       'driver': {
-#                           'name': '2MS',
-#                           'version': '2.8.1',
-#                           'informationUri': 'https://github.com/Checkmarx/2ms'
-#                       }
-#                   },
-#                   'results': []
-#               }]
-#           }
-          
-#           # Convert findings to SARIF format
-#           for file_results in data.get('results', {}).values():
-#               for finding in file_results:
-#                   # Fix line numbers - SARIF requires line numbers >= 1
-#                   start_line = max(finding.get('startLine', 1), 1)
-#                   start_column = max(finding.get('startColumn', 1), 1)
-                  
-#                   result = {
-#                       'ruleId': finding['ruleId'],
-#                       'message': {'text': f'Secret detected: {finding[\"ruleId\"]}'},
-#                       'locations': [{
-#                           'physicalLocation': {
-#                               'artifactLocation': {'uri': finding['source'].replace('/repo/', '')},
-#                               'region': {
-#                                   'startLine': start_line,
-#                                   'startColumn': start_column
-#                               }
-#                           }
-#                       }],
-#                       'level': 'error'
-#                   }
-#                   sarif['runs'][0]['results'].append(result)
-          
-#           # Write SARIF file
-#           with open('reports/2ms-results.sarif', 'w') as f:
-#               json.dump(sarif, f, indent=2)
-          
-#           print(f'Created SARIF with {len(sarif[\"runs\"][0][\"results\"])} findings')
-#           print('Line number corrections applied for SARIF compliance')
-#           "
-          
-#           echo "Generated reports:"
-#           ls -la reports/
-#       - name: Upload SARIF to Security tab
-#         uses: github/codeql-action/upload-sarif@v3
-#         if: always()
-#         with:
-#           sarif_file: reports/2ms-results.sarif
-#       - name: Upload JSON report as artifact
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: 2ms-scan-results
-#           path: reports/
-
-name: 2MS Secret Scan
-
+name: 2ms Secret Scan (Fixed)
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
-
+    branches: [ "main", "master" ]
 jobs:
-  two-ms-scan:
+  run-2ms:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
+    env:
+      TWO_MS_VERSION: "2.8.1"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Create reports directory
-        run: mkdir -p reports
-
-      - name: Run 2MS Scan
+      - name: Run 2ms secret scan
         run: |
-          # Run scan but do not fail job even if findings
-          docker run --rm -v "$PWD":/repo checkmarx/2ms:2.8.1 filesystem \
+          mkdir -p reports
+          # Generate JSON output (this works reliably)
+          docker run --rm -v "$PWD":/repo checkmarx/2ms:${{ env.TWO_MS_VERSION }} filesystem \
             --path /repo \
             --stdout-format json \
             --log-level error \
-            --ignore-pattern "**/node_modules/**" \
-            > reports/2ms-results.json || true
-
-      - name: Convert JSON to SARIF
-        run: |
-          python3 - <<'EOF'
+            --ignore-pattern "**/node_modules/**" > reports/2ms-results.json \
+            || echo "2ms completed"
+          
+          # Create basic SARIF from JSON results with proper line number handling
+          python3 -c "
           import json
-          with open("reports/2ms-results.json") as f:
+          import sys
+          
+          # Read JSON results
+          with open('reports/2ms-results.json', 'r') as f:
               data = json.load(f)
-
+          
+          # Create basic SARIF structure
           sarif = {
-              "version": "2.1.0",
-              "runs": [{
-                  "tool": {
-                      "driver": {
-                          "name": "2MS",
-                          "version": "2.8.1",
-                          "informationUri": "https://github.com/Checkmarx/2ms"
+              'version': '2.1.0',
+              'runs': [{
+                  'tool': {
+                      'driver': {
+                          'name': '2MS',
+                          'version': '2.8.1',
+                          'informationUri': 'https://github.com/Checkmarx/2ms'
                       }
                   },
-                  "results": []
+                  'results': []
               }]
           }
-
-          for file_results in data.get("results", {}).values():
+          
+          # Convert findings to SARIF format
+          for file_results in data.get('results', {}).values():
               for finding in file_results:
-                  sarif["runs"][0]["results"].append({
-                      "ruleId": finding["ruleId"],
-                      "message": {"text": f"Secret detected: {finding['ruleId']}"},
-                      "locations": [{
-                          "physicalLocation": {
-                              "artifactLocation": {"uri": finding["source"].replace("/repo/", "")},
-                              "region": {
-                                  "startLine": max(finding.get("startLine", 1), 1),
-                                  "startColumn": max(finding.get("startColumn", 1), 1)
+                  # Fix line numbers - SARIF requires line numbers >= 1
+                  start_line = max(finding.get('startLine', 1), 1)
+                  start_column = max(finding.get('startColumn', 1), 1)
+                  
+                  result = {
+                      'ruleId': finding['ruleId'],
+                      'message': {'text': f'Secret detected: {finding[\"ruleId\"]}'},
+                      'locations': [{
+                          'physicalLocation': {
+                              'artifactLocation': {'uri': finding['source'].replace('/repo/', '')},
+                              'region': {
+                                  'startLine': start_line,
+                                  'startColumn': start_column
                               }
                           }
                       }],
-                      "level": "error"
-                  })
-
-          findings = len(sarif["runs"][0]["results"])
-          with open("reports/2ms-results.sarif", "w") as f:
+                      'level': 'error'
+                  }
+                  sarif['runs'][0]['results'].append(result)
+          
+          # Write SARIF file
+          with open('reports/2ms-results.sarif', 'w') as f:
               json.dump(sarif, f, indent=2)
-
-          print(f"✅ Created SARIF with {findings} findings")
-          EOF
-
-      - name: Upload SARIF to GitHub
+          
+          print(f'Created SARIF with {len(sarif[\"runs\"][0][\"results\"])} findings')
+          print('Line number corrections applied for SARIF compliance')
+          "
+          
+          echo "Generated reports:"
+          ls -la reports/
+      - name: Upload SARIF to Security tab
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: reports/2ms-results.sarif
-          wait-for-processing: true
+      - name: Upload JSON report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2ms-scan-results
+          path: reports/
+
+# name: 2MS Secret Scan
+
+# on:
+#   push:
+#     branches: [ "main" ]
+#   pull_request:
+#     branches: [ "main" ]
+#   workflow_dispatch:
+
+# jobs:
+#   two-ms-scan:
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: read
+#       security-events: write
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Create reports directory
+#         run: mkdir -p reports
+
+#       - name: Run 2MS Scan
+#         run: |
+#           # Run scan but do not fail job even if findings
+#           docker run --rm -v "$PWD":/repo checkmarx/2ms:2.8.1 filesystem \
+#             --path /repo \
+#             --stdout-format json \
+#             --log-level error \
+#             --ignore-pattern "**/node_modules/**" \
+#             > reports/2ms-results.json || true
+
+#       - name: Convert JSON to SARIF
+#         run: |
+#           python3 - <<'EOF'
+#           import json
+#           with open("reports/2ms-results.json") as f:
+#               data = json.load(f)
+
+#           sarif = {
+#               "version": "2.1.0",
+#               "runs": [{
+#                   "tool": {
+#                       "driver": {
+#                           "name": "2MS",
+#                           "version": "2.8.1",
+#                           "informationUri": "https://github.com/Checkmarx/2ms"
+#                       }
+#                   },
+#                   "results": []
+#               }]
+#           }
+
+#           for file_results in data.get("results", {}).values():
+#               for finding in file_results:
+#                   sarif["runs"][0]["results"].append({
+#                       "ruleId": finding["ruleId"],
+#                       "message": {"text": f"Secret detected: {finding['ruleId']}"},
+#                       "locations": [{
+#                           "physicalLocation": {
+#                               "artifactLocation": {"uri": finding["source"].replace("/repo/", "")},
+#                               "region": {
+#                                   "startLine": max(finding.get("startLine", 1), 1),
+#                                   "startColumn": max(finding.get("startColumn", 1), 1)
+#                               }
+#                           }
+#                       }],
+#                       "level": "error"
+#                   })
+
+#           findings = len(sarif["runs"][0]["results"])
+#           with open("reports/2ms-results.sarif", "w") as f:
+#               json.dump(sarif, f, indent=2)
+
+#           print(f"✅ Created SARIF with {findings} findings")
+#           EOF
+
+#       - name: Upload SARIF to GitHub
+#         uses: github/codeql-action/upload-sarif@v3
+#         with:
+#           sarif_file: reports/2ms-results.sarif
+#           wait-for-processing: true
