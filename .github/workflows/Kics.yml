@@ -61,7 +61,7 @@ jobs:
           platform_type: 'dockerfile,kubernetes,terraform'
           exclude_paths: 'node_modules'
           fail_on: "high,medium"
-          ignore_on_exit: "results"
+          #ignore_on_exit: "results"
       - name: Upload SARIF to Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
