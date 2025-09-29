@@ -35,7 +35,7 @@
 #           name: 2ms-scan-results
 #           path: reports/2ms-results.json
 
-name: 2ms Secret Scan (Fixed)
+name: 2ms Secret Scan # this is  a test
 on:
   push:
     branches: [ "main", "master" ]
